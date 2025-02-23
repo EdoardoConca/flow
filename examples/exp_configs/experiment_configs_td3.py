@@ -2,16 +2,16 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, Ve
 from flow.controllers.routing_controllers import MinicityRouter
 from flow.controllers import IDMController, RLController
 from flow.networks.intersection import Intersection
-from flow.envs.multiagent import CustomNormalizedMultiAgentAccelPOEnv
+from flow.envs.multiagent.intersection_ddpg import CustomNormalizedMultiAgentAccelPOEnv
 from flow.core.params import InFlows
 from flow.envs.test import TestEnv
+from flow.envs.multiagent.ring.accel import MultiAgentAccelPOEnv
 
 NUM_HUMAN = 14
 NUM_AUTOMATED = 7
 NUM_VEHICLES = NUM_HUMAN + NUM_AUTOMATED
-
 LENGTH_CZ = 100 #length control zone
-FLOW_RATE = 80 #vehicles per hour
+FLOW_RATE = 80 #vehicles per hour 50
 # target velocity
 TARGET_VELOCITY = 20
 # maximum acceleration for autonomous vehicles, in m/s^2
@@ -28,10 +28,11 @@ N_CPUS = 2
 
 def get_flow_params(rl_flag=True):
     """Definisce i parametri di Flow per la simulazione."""
-    
-    # Initialize vehicles
+
+    # Configurazione dei veicoli
     vehicles = VehicleParams()
-    
+
+    # Veicoli che percorrono la griglia orizzontalmente
     
     vehicles.add(
     veh_id="human",
@@ -58,7 +59,6 @@ def get_flow_params(rl_flag=True):
         ),
         num_vehicles=0)
 
-    # Inflows (vehicles entering the network)
     inflow = InFlows()
     for edge in ["L0", "L2", "L4", "L6"]:
         inflow.add(
@@ -73,18 +73,20 @@ def get_flow_params(rl_flag=True):
             vehs_per_hour= FLOW_RATE,
             depart_lane="random",
             depart_speed=5)
-        
-    # Traffic lights parameters
-    traffic_lights = TrafficLightParams()
+
     
-    # SUMO parameters
+
+    # Parametri dei semafori (sempre verde per semplificare)
+    traffic_lights = TrafficLightParams()
+
+    # Parametri della simulazione SUMO
     sim = SumoParams(
         sim_step=0.1,
         render=False,
         restart_instance=True,
     )
-    
-    # RL parameters
+
+    # Parametri dell'ambiente
     env = EnvParams(
         horizon=HORIZON,
         additional_params={
@@ -94,50 +96,40 @@ def get_flow_params(rl_flag=True):
             'sort_vehicles': False
         },
     )
+
     
-    
-    # Initial configuration for inflow
+    #initial configuration for inflow
     initial = InitialConfig(spacing="random")
 
-    # Network configuration
+    #network configuration
     net_params = NetParams(
         inflows=inflow,
         additional_params={
             'speed_limit': 30,
         }
     )
-       
-    # Flow parameters
+    
+    # Parametri di Flow
     flow_params = dict(
-        # experiment name
-        exp_tag="my_multiagent_env_ppo",
-
-        # RL environment instance
-        env_name= CustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv,
-
-        # Network instance 
+        # Nome dell'esperimento
+        exp_tag="my_multiagent_env_ddpg",
+        # Nome dell'ambiente Flow
+        env_name= CustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv, 
+        # Classe della rete
         network=Intersection,
-
-        # simulator used by the experiment
+        # Parametri del simulatore
         simulator='traci',
-
-        # simulator-related parameters
         sim=sim,
-
-        # environment related parameters
+        # Parametri dell'ambiente
         env=env,
-
-        # network related parameters
+        # Parametri della rete
         net=net_params,
-
-        # vehicles parameters
+        # Veicoli nella rete
         veh=vehicles,
-
-        # initial configuration
+        # Configurazione iniziale
         initial=initial,
-
-        # traffic lights parameters
+        # Parametri dei semafori
         traffic_lights=traffic_lights
     )
-    
+
     return flow_params

@@ -110,7 +110,7 @@ def get_flow_params(rl_flag=True):
     # Flow parameters
     flow_params = dict(
         # experiment name
-        exp_tag="my_multiagent_env_ppo",
+        exp_tag="A3C_Intersection",
 
         # RL environment instance
         env_name= CustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv,

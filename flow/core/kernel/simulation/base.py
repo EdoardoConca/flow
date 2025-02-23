@@ -69,6 +69,10 @@ class KernelSimulation(object):
             step
         """
         raise NotImplementedError
+    
+    def get_travel_times(self):
+        """Return the current travel times of all vehicles in the network."""
+        raise NotImplementedError
 
     def check_collision(self):
         """Determine if a collision occurred in the last time step.

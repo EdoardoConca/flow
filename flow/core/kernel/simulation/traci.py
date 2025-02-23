@@ -66,6 +66,8 @@ class TraCISimulation(KernelSimulation):
         self.emission_path = None
         self.time = 0
         self.stored_data = dict()
+        self.entry_times = dict()
+        self.exit_times = dict()
 
     def pass_api(self, kernel_api):
         """See parent class.
@@ -142,6 +144,26 @@ class TraCISimulation(KernelSimulation):
                     "distance": kv.get_distance(veh_id),
                 })
 
+        # Ottieni i veicoli partiti e arrivati
+        departed_vehicles = self.kernel_api.simulation.getSubscriptionResults().get(tc.VAR_DEPARTED_VEHICLES_IDS, [])
+        arrived_vehicles = self.kernel_api.simulation.getSubscriptionResults().get(tc.VAR_ARRIVED_VEHICLES_IDS, [])
+
+        # Registra il tempo di ingresso dei veicoli
+        for veh_id in departed_vehicles:
+            self.entry_times[veh_id] = self.time
+
+        # Registra il tempo di uscita dei veicoli
+        for veh_id in arrived_vehicles:
+            self.exit_times[veh_id] = self.time
+
+    def get_travel_times(self):
+        """Calculate and return the travel times of each vehicle."""
+        travel_times = {}
+        for veh_id in self.entry_times:
+            if veh_id in self.exit_times:
+                travel_times[veh_id] = self.exit_times[veh_id] - self.entry_times[veh_id]
+        return travel_times
+    
     def close(self):
         """See parent class."""
         # Save the emission data to a csv.

@@ -2,9 +2,10 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, Ve
 from flow.controllers.routing_controllers import MinicityRouter
 from flow.controllers import IDMController, RLController
 from flow.networks.intersection import Intersection
-from flow.envs.multiagent import CustomNormalizedMultiAgentAccelPOEnv
+from flow.envs.multiagent.intersection_sac import SACCustomNormalizedMultiAgentAccelPOEnv
 from flow.core.params import InFlows
 from flow.envs.test import TestEnv
+from flow.envs.multiagent.ring.accel import MultiAgentAccelPOEnv
 
 NUM_HUMAN = 14
 NUM_AUTOMATED = 7
@@ -110,10 +111,10 @@ def get_flow_params(rl_flag=True):
     # Flow parameters
     flow_params = dict(
         # experiment name
-        exp_tag="my_multiagent_env_ppo",
+        exp_tag="my_multiagent_env_sac",
 
         # RL environment instance
-        env_name= CustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv,
+        env_name= SACCustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv,
 
         # Network instance 
         network=Intersection,

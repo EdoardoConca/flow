@@ -63,6 +63,7 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
         self.leader = []
         self.follower = []
         self.timer = 1
+        self.num_training_iters = 0
 
         super().__init__(env_params, sim_params, network, simulator)
 
@@ -198,4 +199,7 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
         self.leader = []
         self.follower = []
         return super().reset()
+    
+    def set_iteration_num(self):
+        self.num_training_iters += 1
 
