@@ -13,7 +13,7 @@ ADDITIONAL_NET_PARAMS = {
 }
 
 class Intersection(Network):
-    """Definizione di una rete personalizzata per SUMO."""
+    """Custom network class for a four-way intersection."""
 
     def __init__(self, name, vehicles, net_params, 
                  initial_config=InitialConfig(), traffic_lights=TrafficLightParams()):
@@ -25,7 +25,7 @@ class Intersection(Network):
                          initial_config, traffic_lights)
 
     def specify_nodes(self, net_params):
-        """Definisci i nodi della rete."""
+        """Specifies the positions of nodes in the network."""
         nodes = [
             {"id": "J0", "x": 0.0, "y": 200.0},
             {"id": "J1", "x": 0.0, "y": 0.0},
@@ -45,7 +45,7 @@ class Intersection(Network):
         return nodes
 
     def specify_edges(self, net_params):
-        """Definisci gli archi della rete."""
+        """Defines all the edges in the network."""
         edges = [
             {"id": "L0", "from": "J0", "to": "J1", "numLanes": 2, "length": 200, 'type': 'edgeType'},
             {"id": "L1", "from": "J1", "to": "J0", "numLanes": 2, "length": 200, 'type': 'edgeType'},
@@ -69,7 +69,7 @@ class Intersection(Network):
 
     
     def specify_routes(self, net_params):
-        """Definisci le rotte per tutti gli archi e rotte multiple."""
+        """Defines the routes vehicles can take."""
         edges = [
             "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"
         ]
@@ -138,25 +138,23 @@ class Intersection(Network):
     @staticmethod
     def gen_custom_start_pos(cls, net_params, initial_config, num_vehicles):
         """
-        Genera posizioni iniziali casuali per i veicoli all'interno della rete.
+        Generate a user-defined set of starting positions.
 
         Parameters
         ----------
         net_params : flow.core.params.NetParams
-            Parametri specifici della rete.
+            network-specific parameters
         initial_config : flow.core.params.InitialConfig
-            Configurazione iniziale della rete.
+            initial configuration for vehicles
         num_vehicles : int
-            Numero di veicoli da posizionare.
+            number of vehicles to be placed on the network
 
         Returns
         -------
-        start_positions : list of tuple (str, float)
-            Lista di posizioni iniziali dei veicoli [(edge_id, position), ...].
-        start_lanes : list of int
-            Lista di corsie iniziali dei veicoli.
-        start_speeds : list of float
-            Lista di velocità iniziali dei veicoli.
+        list of tuple
+            list of start positions [(edge0, pos0), (edge1, pos1), ...]
+        list of int
+            list of lanes
         """
         return net_params.additional_params["start_positions"], net_params.additional_params["start_lanes"]
             

@@ -306,7 +306,7 @@ def setup_exps_rllib(flow_params,
         rl_ids = [veh_id for veh_id in env.k.vehicle.get_rl_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
         human_ids = [veh_id for veh_id in env.k.vehicle.get_human_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
 
-        # Velocità media
+        # average speed
         if veh_ids:
             episode.user_data["avg_speed"].append(np.mean([env.k.vehicle.get_speed(veh_id) for veh_id in veh_ids]))
         if rl_ids:
@@ -314,10 +314,10 @@ def setup_exps_rllib(flow_params,
         if human_ids:
             episode.user_data["avg_speed_human"].append(np.mean([env.k.vehicle.get_speed(veh_id) for veh_id in human_ids]))
 
-        # Numero di veicoli
+        # number of cars in the system
         episode.user_data["num_cars"].append(len(veh_ids))
 
-        # Accelerazione media
+        # average acceleration
         if human_ids:
             accel_values_human = [
                 np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id)) / env.sim_step)
@@ -334,12 +334,12 @@ def setup_exps_rllib(flow_params,
             if accel_values_avs:
                 episode.user_data["avg_accel_avs"].append(np.mean(accel_values_avs))
 
-        # Consumo di carburante
+        # fuel consumption
         episode.user_data["fuel_consumption"].extend(
             [env.k.vehicle.get_fuel_consumption(veh_id) for veh_id in veh_ids]
         )
 
-        # Collisioni
+        # collisions
         if env.k.simulation.check_collision():
             episode.user_data["collisions"] += 1
 
@@ -358,7 +358,6 @@ def setup_exps_rllib(flow_params,
                 return np.mean(flat_data) if flat_data else 0  
             return float(data) if isinstance(data, (int, float)) else 0  
 
-        # **Usa direttamente i nomi originali senza _mean**
         for k in episode.user_data:
             try:
                 episode.custom_metrics[k] = clean_and_mean(episode.user_data[k])
@@ -366,7 +365,6 @@ def setup_exps_rllib(flow_params,
                 print(f"Errore su {k}: {str(e)}, sto ignorando.")
                 episode.custom_metrics[k] = 0
 
-        # **Evita duplicati come `_mean_mean`**
         episode.custom_metrics["fuel_consumption"] = clean_and_mean(episode.user_data["fuel_consumption"])
         episode.custom_metrics["total_collisions"] = episode.user_data.get("collisions", 0)
         episode.custom_metrics["avg_speed"] = clean_and_mean(episode.user_data["avg_speed"])
@@ -383,7 +381,7 @@ def setup_exps_rllib(flow_params,
             lambda ev: ev.foreach_env(
                 lambda env: env.set_iteration_num()))
 
-    # **Registra i callback**
+    # callbacks
     config['callbacks'] = {
         "on_episode_start": tune.function(on_episode_start),
         "on_episode_step": tune.function(on_episode_step),
@@ -391,13 +389,13 @@ def setup_exps_rllib(flow_params,
         "on_train_result": tune.function(on_train_result)
     }
 
-    # Salva i parametri per il replay
+    # save the flow params for replay
     flow_json = json.dumps(
         flow_params, cls=FlowParamsEncoder, sort_keys=True, indent=4)
     config['env_config']['flow_params'] = flow_json
     config['env_config']['run'] = alg_run
 
-    # Configurazione multi-agente
+    # multiagent configuration
     if policy_graphs is not None:
         config['multiagent'].update({'policies': policy_graphs})
     if policy_mapping_fn is not None:
@@ -408,7 +406,7 @@ def setup_exps_rllib(flow_params,
 
     create_env, gym_name = make_create_env(params=flow_params)
 
-    # Registra l'ambiente su RLlib
+    # register as rllib env
     register_env(gym_name, create_env)
     return alg_run, gym_name, config
 
@@ -453,7 +451,7 @@ def train_rllib(submodule, flags):
     def trial_str_creator(trial):
         return "{}_{}".format(trial.trainable_name, trial.experiment_tag)
     
-    # **Hyperparameter Tuning con Ray Tune**
+    # **Hyperparameter Tuning with Ray Tune**
     if flags.tune:
         stop_criteria = {
             "training_iteration": 50,  

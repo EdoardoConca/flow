@@ -197,4 +197,3 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
     
     def set_iteration_num(self):
         self.num_training_iters += 1
-
