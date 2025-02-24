@@ -3,7 +3,7 @@ from ray.rllib.agents.ddpg.ddpg_policy import DDPGTFPolicy
 from examples.exp_configs.experiment_configs_ddpg import get_flow_params
 
 N_CPUS=3
-N_ROLLOUTS=50
+N_ROLLOUTS=40
 
 # start sumo visualization
 flow_params = get_flow_params()

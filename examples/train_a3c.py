@@ -138,87 +138,64 @@ def setup_exps_rllib(flow_params,
         "use_pytorch": False,  # Specifica se usare PyTorch o TensorFlow
     })
     
-    #callbacks
+    # **Callbacks**
     def on_episode_start(info):
         """Inizializza le metriche per ogni episodio."""
         episode = info["episode"]
-        #episode.user_data["travel_times"] = []  # Tempo di viaggio per veicolo
-        episode.user_data["fuel_consumption"] = []  # Consumo carburante
-        episode.user_data["collisions"] = 0     # Numero di collisioni
-        episode.user_data["num_cars"] = []      # Numero di veicoli
-        episode.user_data["avg_accel_human"] = [] # Accelerazione media per veicoli umani
-        episode.user_data["avg_accel_avs"] = []  # Accelerazione media per veicoli autonomi
-        episode.user_data["avg_speed_human"] = [] # Velocità media per veicoli umani
-        episode.user_data["avg_speed_avs"] = []  # Velocità media per veicoli autonomi
-        episode.user_data["avg_speed"] = []      # Velocità media per tutti i veicoli
+        episode.user_data["fuel_consumption"] = []  
+        episode.user_data["collisions"] = 0  
+        episode.user_data["num_cars"] = []  
+        episode.user_data["avg_accel_human"] = []  
+        episode.user_data["avg_accel_avs"] = []  
+        episode.user_data["avg_speed_human"] = []  
+        episode.user_data["avg_speed_avs"] = []  
+        episode.user_data["avg_speed"] = []  
 
     def on_episode_step(info):
         """Registra i dati a ogni passo dell'episodio."""
         episode = info["episode"]
         env = info["env"].get_unwrapped()[0]
 
-        # list of vehicle ids
+        veh_ids = [veh_id for veh_id in env.k.vehicle.get_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
+        rl_ids = [veh_id for veh_id in env.k.vehicle.get_rl_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
+        human_ids = [veh_id for veh_id in env.k.vehicle.get_human_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
 
-        if hasattr(env, 'no_control_edges'):
-            veh_ids = [
-                veh_id for veh_id in env.k.vehicle.get_ids()
-                if env.k.vehicle.get_speed(veh_id) >= 0
-                and env.k.vehicle.get_edge(veh_id) not in env.no_control_edges
+        # Velocità media
+        if veh_ids:
+            episode.user_data["avg_speed"].append(np.mean([env.k.vehicle.get_speed(veh_id) for veh_id in veh_ids]))
+        if rl_ids:
+            episode.user_data["avg_speed_avs"].append(np.mean([env.k.vehicle.get_speed(veh_id) for veh_id in rl_ids]))
+        if human_ids:
+            episode.user_data["avg_speed_human"].append(np.mean([env.k.vehicle.get_speed(veh_id) for veh_id in human_ids]))
+
+        # Numero di veicoli
+        episode.user_data["num_cars"].append(len(veh_ids))
+
+        # Accelerazione media
+        if human_ids:
+            accel_values_human = [
+                np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id)) / env.sim_step)
+                for veh_id in human_ids if veh_id in env.k.vehicle.previous_speeds.keys()
             ]
-            rl_ids = [
-                veh_id for veh_id in env.k.vehicle.get_rl_ids()
-                if env.k.vehicle.get_speed(veh_id) >= 0
-                and env.k.vehicle.get_edge(veh_id) not in env.no_control_edges
+            if accel_values_human:
+                episode.user_data["avg_accel_human"].append(np.mean(accel_values_human))
+
+        if rl_ids:
+            accel_values_avs = [
+                np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id)) / env.sim_step)
+                for veh_id in rl_ids if veh_id in env.k.vehicle.previous_speeds.keys()
             ]
+            if accel_values_avs:
+                episode.user_data["avg_accel_avs"].append(np.mean(accel_values_avs))
 
-            human_ids = [
-                veh_id for veh_id in env.k.vehicle.get_human_ids()
-                if env.k.vehicle.get_speed(veh_id) >= 0
-                and env.k.vehicle.get_edge(veh_id) not in env.no_control_edges
-            ]
-        else:
-            veh_ids = [veh_id for veh_id in env.k.vehicle.get_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
-            rl_ids = [veh_id for veh_id in env.k.vehicle.get_rl_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
-            human_ids = [veh_id for veh_id in env.k.vehicle.get_human_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
+        # Consumo di carburante
+        episode.user_data["fuel_consumption"].extend(
+            [env.k.vehicle.get_fuel_consumption(veh_id) for veh_id in veh_ids]
+        )
 
-        # average speed
-        speed = np.mean([speed for speed in env.k.vehicle.get_speed(veh_ids)])
-        if not np.isnan(speed):
-            episode.user_data["avg_speed"].append(speed)
-        av_speed_avs = np.mean([speed for speed in env.k.vehicle.get_speed(rl_ids) if speed >= 0])
-        if not np.isnan(av_speed_avs):
-            episode.user_data["avg_speed_avs"].append(av_speed_avs)
-        av_speed_human = np.mean([speed for speed in env.k.vehicle.get_speed(human_ids) if speed >= 0])
-        if not np.isnan(av_speed_human):
-            episode.user_data["avg_speed_human"].append(av_speed_human)
-
-        # vehicle number
-        episode.user_data["num_cars"].append(len(env.k.vehicle.get_ids()))
-
-        # average acceleration
-        episode.user_data["avg_accel_human"].append(np.nan_to_num(np.mean(
-            [np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id))/env.sim_step) for
-             veh_id in human_ids if veh_id in env.k.vehicle.previous_speeds.keys()]
-        )))
-        episode.user_data["avg_accel_avs"].append(np.nan_to_num(np.mean(
-            [np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id))/env.sim_step) for
-             veh_id in rl_ids if veh_id in env.k.vehicle.previous_speeds.keys()]
-        )))
-
-        
-        # Tempo medio di viaggio (in secondi)
-        travel_times = env.k.simulation.get_travel_times()
-        #episode.user_data["travel_times"].append(travel_times.values())
-
-        # fuel consumption (ml/sec)
-        fuel_consumption = [env.k.vehicle.get_fuel_consumption(veh_id) for veh_id in veh_ids]
-        episode.user_data["fuel_consumption"].append(fuel_consumption)
-
-        # number collisions
-        if env.k.simulation.check_collision():  # Se avviene una collisione, incrementa il contatore
+        # Collisioni
+        if env.k.simulation.check_collision():
             episode.user_data["collisions"] += 1
-
-        
 
     def on_episode_end(info):
         """Calcola le metriche finali per l'episodio e stampa i risultati."""
@@ -229,31 +206,29 @@ def setup_exps_rllib(flow_params,
             print(f"Key: {k}, Type: {type(v)}, Length: {len(v) if isinstance(v, list) else 'N/A'}")
 
         def clean_and_mean(data):
-            """Appiattisce i dati e calcola la media ignorando valori non numerici."""
+            """Appiattisce i dati e calcola la media ignorando valori NaN e non numerici."""
             if isinstance(data, list):
-                # Appiattisce liste annidate
-                flat_data = [float(item) for sublist in data for item in (sublist if isinstance(sublist, list) else [sublist])
-                            if isinstance(item, (int, float)) and not np.isnan(item)]
-                return np.nanmean(flat_data) if flat_data else 0  # Se vuota, restituisce 0
-            return float(data) if isinstance(data, (int, float)) else 0  # Se singolo valore
+                flat_data = [float(item) for item in data if isinstance(item, (int, float)) and not np.isnan(item)]
+                return np.mean(flat_data) if flat_data else 0  
+            return float(data) if isinstance(data, (int, float)) else 0  
 
+        # **Usa direttamente i nomi originali senza _mean**
         for k in episode.user_data:
             try:
-                episode.custom_metrics[k + "_mean"] = clean_and_mean(episode.user_data[k])
+                episode.custom_metrics[k] = clean_and_mean(episode.user_data[k])
             except Exception as e:
                 print(f"Errore su {k}: {str(e)}, sto ignorando.")
-                episode.custom_metrics[k + "_mean"] = 0
+                episode.custom_metrics[k] = 0
 
-        # Calcolo delle metriche principali
-        episode.custom_metrics["avg_fuel_consumption"] = clean_and_mean("fuel_consumption")
-        episode.custom_metrics["total_collisions"] = episode.user_data.get("collisions", 0)  # Se è un intero, lo lascia invariato
-        episode.custom_metrics["avg_speed"] = clean_and_mean("avg_speed")
-        episode.custom_metrics["avg_speed_avs"] = clean_and_mean("avg_speed_avs")
-        episode.custom_metrics["avg_speed_human"] = clean_and_mean("avg_speed_human")
-        episode.custom_metrics["num_cars"] = clean_and_mean("num_cars")
-        episode.custom_metrics["avg_accel_avs"] = clean_and_mean("avg_accel_avs")
-        episode.custom_metrics["avg_accel_human"] = clean_and_mean("avg_accel_human")
-
+        # **Evita duplicati come `_mean_mean`**
+        episode.custom_metrics["fuel_consumption"] = clean_and_mean(episode.user_data["fuel_consumption"])
+        episode.custom_metrics["total_collisions"] = episode.user_data.get("collisions", 0)
+        episode.custom_metrics["avg_speed"] = clean_and_mean(episode.user_data["avg_speed"])
+        episode.custom_metrics["avg_speed_avs"] = clean_and_mean(episode.user_data["avg_speed_avs"])
+        episode.custom_metrics["avg_speed_human"] = clean_and_mean(episode.user_data["avg_speed_human"])
+        episode.custom_metrics["num_cars"] = clean_and_mean(episode.user_data["num_cars"])
+        episode.custom_metrics["avg_accel_avs"] = clean_and_mean(episode.user_data["avg_accel_avs"])
+        episode.custom_metrics["avg_accel_human"] = clean_and_mean(episode.user_data["avg_accel_human"])
 
     def on_train_result(info):
         """Registra le metriche globali per il training."""
@@ -261,8 +236,8 @@ def setup_exps_rllib(flow_params,
         trainer.workers.foreach_worker(
             lambda ev: ev.foreach_env(
                 lambda env: env.set_iteration_num()))
-        
-    # Registra i callback
+
+    # **Registra i callback**
     config['callbacks'] = {
         "on_episode_start": tune.function(on_episode_start),
         "on_episode_step": tune.function(on_episode_step),

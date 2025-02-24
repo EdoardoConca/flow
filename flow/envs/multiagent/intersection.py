@@ -1,9 +1,8 @@
 from flow.envs.multiagent import MultiEnv
 from flow.core.rewards import desired_velocity, penalize_standstill, rl_forward_progress
-from flow.core.rewards import min_delay, penalize_near_standstill, punish_rl_lane_changes, energy_consumption
+from flow.core.rewards import min_delay, punish_rl_lane_changes
 from flow.core import rewards
 from gym.spaces import Box
-from gym.spaces import Tuple, Discrete
 import numpy as np
 
 
@@ -15,8 +14,6 @@ ADDITIONAL_ENV_PARAMS = {
     # desired velocity for all vehicles in the network, in m/s
     "target_velocity": 20,
 }
-
-NUM_ACTIONS = 5  # Define the number of discrete actions
 
 class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
     """Custom multi-agent acceleration environment with combined rewards.
@@ -83,9 +80,10 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
         return Box(low=-5, high=5, shape=(6,), dtype=np.float32)
 
     def _apply_rl_actions(self, rl_actions):
-        """See class definition."""
-        for veh_id in self.k.vehicle.get_rl_ids():
-            self.k.vehicle.apply_acceleration(veh_id, rl_actions[veh_id])
+        for veh_id, action in rl_actions.items():
+            if not isinstance(action, np.ndarray):
+                action = np.array([action], dtype=np.float32)
+            self.k.vehicle.apply_acceleration(veh_id, action)
 
     def compute_reward(self, rl_actions, **kwargs):
         """Compute the reward for each agent using combined reward functions."""
@@ -170,13 +168,13 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
                 lead_head / max_length,  # Normalize headway
                 (this_speed - follow_speed) / max_speed,  # Normalize relative speed
                 follow_head / max_length  # Normalize headway
-            ])
+            ], dtype=np.float32)
 
             # Clip observations to ensure they are within bounds
             normalized_obs = np.clip(normalized_obs, -5, 5)
 
             # Add the normalized observation to the dictionary
-            obs[rl_id] = normalized_obs
+            obs[rl_id] = np.asarray(normalized_obs, dtype=np.float32)
 
         return obs
 
@@ -192,9 +190,6 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
 
     def reset(self):
         """See parent class.
-
-        In addition, a few variables that are specific to this class are
-        emptied before they are used by the new rollout.
         """
         self.leader = []
         self.follower = []

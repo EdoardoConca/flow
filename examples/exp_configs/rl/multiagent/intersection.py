@@ -3,7 +3,7 @@ from ray.rllib.agents.ppo.ppo_policy import PPOTFPolicy
 from examples.exp_configs.experiment_configs_ppo import get_flow_params
 
 N_CPUS=3
-N_ROLLOUTS=50
+N_ROLLOUTS=40
 
 # start sumo visualization
 flow_params = get_flow_params()

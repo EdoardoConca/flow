@@ -2,15 +2,11 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, Ve
 from flow.controllers.routing_controllers import MinicityRouter
 from flow.controllers import IDMController, RLController
 from flow.networks.intersection import Intersection
-from flow.envs.multiagent import CustomNormalizedMultiAgentAccelPOEnv
+from flow.envs.multiagent.intersection import CustomNormalizedMultiAgentAccelPOEnv
 from flow.core.params import InFlows
 from flow.envs.test import TestEnv
 
-NUM_HUMAN = 14
-NUM_AUTOMATED = 7
-NUM_VEHICLES = NUM_HUMAN + NUM_AUTOMATED
 
-LENGTH_CZ = 100 #length control zone
 FLOW_RATE = 80 #vehicles per hour
 # target velocity
 TARGET_VELOCITY = 20
@@ -23,7 +19,7 @@ HORIZON = 1500
 # number of rollouts per training iteration
 N_ROLLOUTS = 40
 # number of parallel workers
-N_CPUS = 2
+N_CPUS = 3
 
 
 def get_flow_params(rl_flag=True):

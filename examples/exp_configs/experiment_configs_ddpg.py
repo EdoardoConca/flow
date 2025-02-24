@@ -2,14 +2,11 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, Ve
 from flow.controllers.routing_controllers import MinicityRouter
 from flow.controllers import IDMController, RLController
 from flow.networks.intersection import Intersection
-from flow.envs.multiagent.intersection_ddpg import CustomNormalizedMultiAgentAccelPOEnv
+from flow.envs.multiagent.intersection import CustomNormalizedMultiAgentAccelPOEnv
 from flow.core.params import InFlows
 from flow.envs.test import TestEnv
 
-NUM_HUMAN = 14
-NUM_AUTOMATED = 7
-NUM_VEHICLES = NUM_HUMAN + NUM_AUTOMATED
-LENGTH_CZ = 100 #length control zone
+
 FLOW_RATE = 80 #vehicles per hour 50
 # target velocity
 TARGET_VELOCITY = 20
@@ -111,7 +108,7 @@ def get_flow_params(rl_flag=True):
     # Parametri di Flow
     flow_params = dict(
         # Nome dell'esperimento
-        exp_tag="my_multiagent_env_ddpg",
+        exp_tag="DDPG_Intersection",
         # Nome dell'ambiente Flow
         env_name= CustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv, 
         # Classe della rete

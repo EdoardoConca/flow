@@ -168,8 +168,8 @@ def setup_exps_rllib(flow_params,
 
     # 🔹 Definisci il criterio di early stopping
     stop_criteria = {
-        "training_iteration": 50,  # 🔥 Ferma il tuning dopo 50 iterazioni
-        "episode_reward_mean": 7000,  # 🔥 Ferma se la reward supera 1000
+        "training_iteration": 50,  
+        "episode_reward_mean": 7000,  
     }
 
     # 🔹 Iperparametri da ottimizzare
@@ -177,7 +177,7 @@ def setup_exps_rllib(flow_params,
         "num_workers": 2,
         "gamma": 0.99,
         "tau": 0.01,
-        "horizon": 1000,
+        "horizon": 1500,
         "actor_hiddens": [128, 128],
         "critic_hiddens": [128, 128],
         "exploration_ou_theta": tune.uniform(0.1, 0.3),

@@ -1,6 +1,6 @@
 from flow.envs.multiagent import MultiEnv
 from flow.core.rewards import desired_velocity, penalize_standstill, rl_forward_progress
-from flow.core.rewards import min_delay, penalize_near_standstill, punish_rl_lane_changes, energy_consumption
+from flow.core.rewards import min_delay, punish_rl_lane_changes
 from flow.core import rewards
 from gym.spaces import Box
 import numpy as np
@@ -117,7 +117,4 @@ class CustomNormalizedMultiAgentAccelPOEnv(MultiEnv):
         return super().reset()
     
     def set_iteration_num(self):
-        if not hasattr(self, 'iteration'):
-            self.iteration = 0
-        self.iteration += 1
-        print(f"Iteration updated: {self.iteration}")
+        self.num_training_iters += 1

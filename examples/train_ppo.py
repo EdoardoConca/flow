@@ -7,12 +7,10 @@ Usage
     python train.py EXP_CONFIG
 """
 import argparse
-from datetime import datetime
 import json
 import os
 import sys
 from time import strftime
-import numpy as np
 from copy import deepcopy
 
 from flow.core.util import ensure_dir
@@ -39,25 +37,12 @@ def parse_args(args):
         'exp_config', type=str,
         help='Name of the experiment configuration file, as located in '
              'exp_configs/rl/singleagent or exp_configs/rl/multiagent.')
-    
-    parser.add_argument(
-        'exp_title', type=str,
-        help='Name of experiment that results will be stored in')
 
     # optional input parameters
     parser.add_argument(
         '--rl_trainer', type=str, default="rllib",
         help='the RL trainer to use. either rllib or Stable-Baselines')
-    parser.add_argument(
-        '--algorithm', type=str, default="PPO",
-        help='RL algorithm to use. Options are PPO, DQN'
-    )
-    parser.add_argument(
-        '--num_iterations', type=int, default=20,
-        help='How many iterations are in a training run.')
-    parser.add_argument(
-        '--grid_search', action='store_true', default=False,
-        help='Whether to grid search over hyperparams')
+
     parser.add_argument(
         '--num_cpus', type=int, default=1,
         help='How many CPUs to use')
@@ -67,9 +52,6 @@ def parse_args(args):
     parser.add_argument(
         '--rollout_size', type=int, default=1000,
         help='How many steps are in a training batch.')
-    parser.add_argument(
-        '--checkpoint_freq', type=int, default=20,
-        help='How often to checkpoint.')
     parser.add_argument(
         '--checkpoint_path', type=str, default=None,
         help='Directory with checkpoint to restore training from.')
@@ -119,7 +101,6 @@ def run_model_stablebaseline(flow_params,
 def setup_exps_rllib(flow_params,
                      n_cpus,
                      n_rollouts,
-                     flags,
                      policy_graphs=None,
                      policy_mapping_fn=None,
                      policies_to_train=None):
@@ -151,132 +132,35 @@ def setup_exps_rllib(flow_params,
     """
     from ray import tune
     from ray.tune.registry import register_env
-    from ray.rllib.env.group_agents_wrapper import _GroupAgentsWrapper
     try:
         from ray.rllib.agents.agent import get_agent_class
     except ImportError:
         from ray.rllib.agents.registry import get_agent_class
 
     horizon = flow_params['env'].horizon
-    alg_run = flags.algorithm.upper()
 
-    if alg_run == "PPO":
+    alg_run = "PPO"
 
-        agent_cls = get_agent_class(alg_run)
-        config = deepcopy(agent_cls._default_config)
+    agent_cls = get_agent_class(alg_run)
+    config = deepcopy(agent_cls._default_config)
 
-        config["num_workers"] = n_cpus
-        config["horizon"] = horizon 
-        config["model"].update({"fcnet_hiddens": [32, 32]})
-        config["train_batch_size"] = horizon * n_rollouts
-        config["gamma"] = 0.995  # discount rate
-        config["use_gae"] = True
-        # TODO(@evinitsky) remove
-        config["no_done_at_end"] = True
-        config["lambda"] = 0.97
-        config["kl_target"] = 0.02
-        config["num_sgd_iter"] = 10
-        if flags.grid_search:
-            config["lambda"] = tune.grid_search([0.5, 0.9])
-            config["lr"] = tune.grid_search([5e-4, 5e-5])
-    elif alg_run == "DDPG":
+    config["num_workers"] = n_cpus
+    config["train_batch_size"] = horizon * n_rollouts
+    config["gamma"] = 0.999  # discount rate
+    config["model"].update({"fcnet_hiddens": [32, 32, 32]})
+    config["use_gae"] = True
+    config["lambda"] = 0.97
+    config["kl_target"] = 0.02
+    config["num_sgd_iter"] = 10
+    config["horizon"] = horizon
 
-        # Ottieni la classe dell'agente DDPG
-        agent_cls = get_agent_class(alg_run)
-        config = deepcopy(agent_cls._default_config)
-
-        # Configurazione specifica per DDPG
-        config.update({
-            "num_workers": n_cpus,  # Numero di CPU da utilizzare
-            "train_batch_size": horizon * n_rollouts,  # Dimensione del batch di training
-            "gamma": 0.99,  # Fattore di sconto
-            "actor_hiddens": [400, 300],  # Rete neurale per l'attore
-            "critic_hiddens": [400, 300],  # Rete neurale per il critico
-            "actor_lr": 1e-4,  # Learning rate per l'attore
-            "critic_lr": 1e-3,  # Learning rate per il critico
-            "tau": 0.001,  # Tasso di aggiornamento soft per i target networks
-            "buffer_size": 1000000,  # Dimensione del replay buffer
-            "exploration_noise_type": "ou",  # Tipo di rumore di esplorazione
-            "exploration_ou_theta": 0.15,  # Parametro theta per il rumore di Ornstein-Uhlenbeck
-            "exploration_ou_sigma": 0.2,  # Parametro sigma per il rumore di Ornstein-Uhlenbeck
-            "exploration_ou_noise_scale": 0.1,  # Scala del rumore di Ornstein-Uhlenbeck
-            "horizon": horizon,  # Orizzonte temporale
-        })
-
-    def on_episode_start(info):
-        episode = info["episode"]
-        episode.user_data["avg_speed"] = []
-        episode.user_data["avg_speed_avs"] = []
-        episode.user_data["avg_energy"] = []
-        episode.user_data["num_cars"] = []
-        episode.user_data["avg_accel_human"] = []
-        episode.user_data["avg_accel_avs"] = []
-
-    def on_episode_step(info):
-        episode = info["episode"]
-        env = info["env"].get_unwrapped()[0]
-        if isinstance(env, _GroupAgentsWrapper):
-            env = env.env
-        if hasattr(env, 'no_control_edges'):
-            veh_ids = [
-                veh_id for veh_id in env.k.vehicle.get_ids()
-                if env.k.vehicle.get_speed(veh_id) >= 0
-                and env.k.vehicle.get_edge(veh_id) not in env.no_control_edges
-            ]
-            rl_ids = [
-                veh_id for veh_id in env.k.vehicle.get_rl_ids()
-                if env.k.vehicle.get_speed(veh_id) >= 0
-                and env.k.vehicle.get_edge(veh_id) not in env.no_control_edges
-            ]
-        else:
-            veh_ids = [veh_id for veh_id in env.k.vehicle.get_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
-            rl_ids = [veh_id for veh_id in env.k.vehicle.get_rl_ids() if env.k.vehicle.get_speed(veh_id) >= 0]
-
-        speed = np.mean([speed for speed in env.k.vehicle.get_speed(veh_ids)])
-        if not np.isnan(speed):
-            episode.user_data["avg_speed"].append(speed)
-        av_speed = np.mean([speed for speed in env.k.vehicle.get_speed(rl_ids) if speed >= 0])
-        if not np.isnan(av_speed):
-            episode.user_data["avg_speed_avs"].append(av_speed)
-        episode.user_data["num_cars"].append(len(env.k.vehicle.get_ids()))
-        episode.user_data["avg_accel_human"].append(np.nan_to_num(np.mean(
-            [np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id))/env.sim_step) for
-             veh_id in veh_ids if veh_id in env.k.vehicle.previous_speeds.keys()]
-        )))
-        episode.user_data["avg_accel_avs"].append(np.nan_to_num(np.mean(
-            [np.abs((env.k.vehicle.get_speed(veh_id) - env.k.vehicle.get_previous_speed(veh_id))/env.sim_step) for
-             veh_id in rl_ids if veh_id in env.k.vehicle.previous_speeds.keys()]
-        )))
-
-    def on_episode_end(info):
-        episode = info["episode"]
-        avg_speed = np.mean(episode.user_data["avg_speed"])
-        episode.custom_metrics["avg_speed"] = avg_speed
-        avg_speed_avs = np.mean(episode.user_data["avg_speed_avs"])
-        episode.custom_metrics["avg_speed_avs"] = avg_speed_avs
-        episode.custom_metrics["avg_accel_avs"] = np.mean(episode.user_data["avg_accel_avs"])
-        episode.custom_metrics["avg_energy_per_veh"] = np.mean(episode.user_data["avg_energy"])
-        episode.custom_metrics["num_cars"] = np.mean(episode.user_data["num_cars"])
-
-    def on_train_result(info):
-        """Store the mean score of the episode, and increment or decrement the iteration number for curriculum."""
-        trainer = info["trainer"]
-        trainer.workers.foreach_worker(
-            lambda ev: ev.foreach_env(
-                lambda env: env.set_iteration_num()))
-
-    config["callbacks"] = {"on_episode_start": tune.function(on_episode_start),
-                           "on_episode_step": tune.function(on_episode_step),
-                           "on_episode_end": tune.function(on_episode_end),
-                           "on_train_result": tune.function(on_train_result)}
-
-    # Salva i parametri di flow per il replay
+    # save the flow params for replay
     flow_json = json.dumps(
         flow_params, cls=FlowParamsEncoder, sort_keys=True, indent=4)
     config['env_config']['flow_params'] = flow_json
     config['env_config']['run'] = alg_run
 
-    # Configurazione multiagente (se applicabile)
+    # multiagent configuration
     if policy_graphs is not None:
         print("policy_graphs", policy_graphs)
         config['multiagent'].update({'policies': policy_graphs})
@@ -286,10 +170,10 @@ def setup_exps_rllib(flow_params,
     if policies_to_train is not None:
         config['multiagent'].update({'policies_to_train': policies_to_train})
 
-    # Crea l'ambiente e registralo in RLlib
     create_env, gym_name = make_create_env(params=flow_params)
-    register_env(gym_name, create_env)
 
+    # Register as rllib env
+    register_env(gym_name, create_env)
     return alg_run, gym_name, config
 
 
@@ -297,9 +181,6 @@ def train_rllib(submodule, flags):
     """Train policies using the PPO algorithm in RLlib."""
     import ray
     from ray.tune import run_experiments
-    import pytz
-    from ray import tune
-
 
     flow_params = submodule.flow_params
     n_cpus = submodule.N_CPUS
@@ -309,41 +190,27 @@ def train_rllib(submodule, flags):
     policies_to_train = getattr(submodule, "policies_to_train", None)
 
     alg_run, gym_name, config = setup_exps_rllib(
-        flow_params, n_cpus, n_rollouts,flags,
+        flow_params, n_cpus, n_rollouts,
         policy_graphs, policy_mapping_fn, policies_to_train)
 
-    config['num_workers'] = flags.num_cpus
-    config['env'] = gym_name
-
-    # create a custom string that makes looking at the experiment names easier
-    def trial_str_creator(trial):
-        return "{}_{}".format(trial.trainable_name, trial.experiment_tag)
-
     ray.init(num_cpus=n_cpus + 1, object_store_memory=200 * 1024 * 1024)
-    
     exp_config = {
         "run": alg_run,
-        "name": flags.exp_title,
         "env": gym_name,
         "config": {
             **config
         },
-        "checkpoint_freq": flags.checkpoint_freq,
+        "checkpoint_freq": 20,
         "checkpoint_at_end": True,
-        'trial_name_creator': trial_str_creator,
-        "max_failures": 0,
+        "max_failures": 999,
         "stop": {
             "training_iteration": flags.num_steps,
         },
     }
 
-    date = datetime.now(tz=pytz.utc)
-    date = date.astimezone(pytz.timezone('US/Pacific')).strftime("%m-%d-%Y")
-
     if flags.checkpoint_path is not None:
         exp_config['restore'] = flags.checkpoint_path
     run_experiments({flow_params["exp_tag"]: exp_config})
-
 
 
 def train_h_baselines(env_name, args, multiagent):
@@ -470,7 +337,7 @@ def main(args):
     """Perform the training operations."""
     # Parse script-level arguments (not including package arguments).
     flags = parse_args(args)
-    
+
     # Import relevant information from the exp_config script.
     module = __import__(
         "exp_configs.rl.singleagent", fromlist=[flags.exp_config])

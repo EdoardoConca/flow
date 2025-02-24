@@ -3,7 +3,7 @@ from ray.rllib.agents.a3c.a3c_tf_policy import A3CTFPolicy
 from examples.exp_configs.experiment_configs_a3c import get_flow_params
 
 N_CPUS=3
-N_ROLLOUTS=50
+N_ROLLOUTS=40
 
 # start sumo visualization
 flow_params = get_flow_params()
