@@ -2,12 +2,12 @@ from flow.core.params import SumoParams, EnvParams, InitialConfig, NetParams, Ve
 from flow.controllers.routing_controllers import MinicityRouter
 from flow.controllers import IDMController, RLController
 from flow.networks.intersection import Intersection
-from flow.envs.multiagent.intersection import CustomNormalizedMultiAgentAccelPOEnv
+from flow.envs.multiagent.intersection import CustomNormalizedMultiAgentAccelPOEnv, VariantNormalizedMultiAgentAccelPOEnv
 from flow.core.params import InFlows
 from flow.envs.test import TestEnv
 
 
-FLOW_RATE = 80 #vehicles per hour
+FLOW_RATE = 200 #vehicles per hour
 # target velocity
 TARGET_VELOCITY = 20
 # maximum acceleration for autonomous vehicles, in m/s^2
@@ -106,10 +106,10 @@ def get_flow_params(rl_flag=True):
     # Flow parameters
     flow_params = dict(
         # experiment name
-        exp_tag="PPO_Intersection",
+        exp_tag="PPO_Intersection_new_env",
 
         # RL environment instance
-        env_name= CustomNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv,
+        env_name= VariantNormalizedMultiAgentAccelPOEnv if rl_flag else TestEnv,
 
         # Network instance 
         network=Intersection,

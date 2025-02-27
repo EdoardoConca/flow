@@ -12,6 +12,7 @@ from flow.envs.ring.wave_attenuation import WaveAttenuationEnv, \
     WaveAttenuationPOEnv
 from flow.envs.merge import MergePOEnv
 from flow.envs.test import TestEnv
+from flow.envs.intersection_base import CustomTestEnv
 
 # deprecated classes whose names have changed
 from flow.envs.bottleneck_env import BottleNeckAccelEnv
@@ -42,4 +43,5 @@ __all__ = [
     'DesiredVelocityEnv',
     'PO_TrafficLightGridEnv',
     'GreenWaveTestEnv',
+    'CustomTestEnv',
 ]

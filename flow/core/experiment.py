@@ -11,7 +11,7 @@ class Experiment:
     Class for systematically running simulations in any supported simulator.
 
     This class acts as a runner for a network and environment. In order to use
-    it to run an network and environment in the absence of a method specifying
+    it to run a network and environment in the absence of a method specifying
     the actions of RL agents in the network, type the following:
 
         >>> from flow.envs import Env
@@ -25,6 +25,8 @@ class Experiment:
         >>> rl_actions = lambda state: 0  # replace with something appropriate
         >>> exp.run(num_runs=1, rl_actions=rl_actions)
 
+    Finally, if you would like to plot and visualize your results, this
+    class can generate csv files from emission files produced by sumo.
     Finally, if you would like to like to plot and visualize your results, this
     class can generate csv files from emission files produced by sumo. These
     files will contain the speeds, positions, edges, etc... of every vehicle
@@ -100,7 +102,8 @@ class Experiment:
         Returns
         -------
         info_dict : dict < str, Any >
-            contains returns, average speed per step
+            contains returns, average speed per step, collisions, acceleration,
+            fuel consumption, and throughput efficiency.
         """
         num_steps = self.env.env_params.horizon
 
@@ -112,20 +115,19 @@ class Experiment:
                 'The experiment was run with convert_to_csv set '
                 'to True, but no emission file will be generated. If you wish '
                 'to generate an emission file, you should set the parameter '
-                'emission_path in the simulation parameters (SumoParams or '
-                'AimsunParams) to the path of the folder where emissions '
-                'output should be generated. If you do not wish to generate '
-                'emissions, set the convert_to_csv parameter to False.')
+                'emission_path in the simulation parameters to a valid path.')
 
         # used to store
         info_dict = {
             "returns": [],
             "velocities": [],
+            "accelerations": [],
+            "fuel_consumption": [],
+            "collisions": [],
             "outflows": [],
+            "throughput_efficiency": [],
         }
-        info_dict.update({
-            key: [] for key in self.custom_callables.keys()
-        })
+        info_dict.update({key: [] for key in self.custom_callables.keys()})
 
         if rl_actions is None:
             def rl_actions(*_):
@@ -138,48 +140,77 @@ class Experiment:
         for i in range(num_runs):
             ret = 0
             vel = []
+            accs = []
+            fuel_cons = []
+            collisions = 0
             custom_vals = {key: [] for key in self.custom_callables.keys()}
             state = self.env.reset()
+
             for j in range(num_steps):
                 t0 = time.time()
                 state, reward, done, _ = self.env.step(rl_actions(state))
                 t1 = time.time()
                 times.append(1 / (t1 - t0))
 
-                # Compute the velocity speeds and cumulative returns.
                 veh_ids = self.env.k.vehicle.get_ids()
-                vel.append(np.mean(self.env.k.vehicle.get_speed(veh_ids)))
+                
+                # Collect metrics
+                if veh_ids:
+                    vel.append(np.nanmean(self.env.k.vehicle.get_speed(veh_ids)))
+                else:
+                    vel.append(0)  
+                accel_values = [
+                    np.abs((self.env.k.vehicle.get_speed(veh_id) - self.env.k.vehicle.get_previous_speed(veh_id)) / self.env.sim_step)
+                    for veh_id in veh_ids if veh_id in self.env.k.vehicle.previous_speeds.keys()
+                ]
+                accs.append(np.nanmean(accel_values) if accel_values else 0)
+                if veh_ids:
+                    fuel_cons.append(np.nanmean(self.env.k.vehicle.get_fuel_consumption(veh_ids)))
+                else:
+                    fuel_cons.append(0) 
+                
+                # Check for collisions
+                if self.env.k.simulation.check_collision():
+                    collisions += 1
+
                 ret += reward
 
-                # Compute the results for the custom callables.
+                # Compute custom callables
                 for (key, lambda_func) in self.custom_callables.items():
                     custom_vals[key].append(lambda_func(self.env))
 
                 if done:
                     break
 
-            # Store the information from the run in info_dict.
-            outflow = self.env.k.vehicle.get_outflow_rate(int(500))
+            # Compute outflow and throughput efficiency
+            outflow = self.env.k.vehicle.get_outflow_rate(500)
+            inflow = self.env.k.vehicle.get_inflow_rate(500)
+            throughput_efficiency = outflow / inflow if inflow > 1e-5 else 0
+
+            # Store results
             info_dict["returns"].append(ret)
-            info_dict["velocities"].append(np.mean(vel))
+            info_dict["velocities"].append(np.nanmean(vel))
+            info_dict["accelerations"].append(np.nanmean(accs))
+            info_dict["fuel_consumption"].append(np.nanmean(fuel_cons))
+            info_dict["collisions"].append(collisions)
             info_dict["outflows"].append(outflow)
+            info_dict["throughput_efficiency"].append(throughput_efficiency)
+
             for key in custom_vals.keys():
                 info_dict[key].append(np.mean(custom_vals[key]))
 
-            print("Round {0}, return: {1}".format(i, ret))
+            print(f"Round {i}, return: {ret}, collisions: {collisions}, throughput efficiency: {throughput_efficiency}")
 
-            # Save emission data at the end of every rollout. This is skipped
-            # by the internal method if no emission path was specified.
+            # Save emission data if required
             if self.env.simulator == "traci":
                 self.env.k.simulation.save_emission(run_id=i)
 
-        # Print the averages/std for all variables in the info_dict.
+        # Print the averages for all stored variables
         for key in info_dict.keys():
-            print("Average, std {}: {}, {}".format(
-                key, np.mean(info_dict[key]), np.std(info_dict[key])))
+            print(f"Average {key}: {np.mean(info_dict[key])}")
 
         print("Total time:", time.time() - t)
-        print("steps/second:", np.mean(times))
+        print("Steps/second:", np.mean(times))
         self.env.terminate()
 
         return info_dict

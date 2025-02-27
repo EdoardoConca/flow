@@ -279,6 +279,8 @@ def setup_exps_rllib(flow_params,
                 "gamma": tune.choice([0.98, 0.99, 0.999]),
                 "entropy_coeff": tune.choice([0.01, 0.02, 0.05]),
                 "vf_loss_coeff": tune.choice([0.5, 0.7, 1.0]),
+                "sample_batch_size": tune.choice([10, 100, 1000]),
+                "grad_clip": tune.choice([20.0, 40.0, 80.0]),
             })
     else:
         sys.exit("We only support PPO, DDPG and A3C, right now.")
@@ -295,7 +297,10 @@ def setup_exps_rllib(flow_params,
         episode.user_data["avg_accel_avs"] = []  
         episode.user_data["avg_speed_human"] = []  
         episode.user_data["avg_speed_avs"] = []  
-        episode.user_data["avg_speed"] = []  
+        episode.user_data["avg_speed"] = [] 
+        episode.user_data["inflow"] = []
+        episode.user_data["outflow"] = []
+        episode.user_data['throughput_efficency'] = []
 
     def on_episode_step(info):
         """Registra i dati a ogni passo dell'episodio."""
@@ -343,6 +348,13 @@ def setup_exps_rllib(flow_params,
         if env.k.simulation.check_collision():
             episode.user_data["collisions"] += 1
 
+        # throughput efficiency
+        inflow = env.k.vehicle.get_inflow_rate(500)  
+        outflow = env.k.vehicle.get_outflow_rate(500)  
+        
+        episode.user_data["inflow"].append(inflow)
+        episode.user_data["outflow"].append(outflow)
+
     def on_episode_end(info):
         """Calcola le metriche finali per l'episodio e stampa i risultati."""
         episode = info["episode"]
@@ -373,6 +385,7 @@ def setup_exps_rllib(flow_params,
         episode.custom_metrics["num_cars"] = clean_and_mean(episode.user_data["num_cars"])
         episode.custom_metrics["avg_accel_avs"] = clean_and_mean(episode.user_data["avg_accel_avs"])
         episode.custom_metrics["avg_accel_human"] = clean_and_mean(episode.user_data["avg_accel_human"])
+        episode.custom_metrics["throughput_efficency"] = clean_and_mean(episode.user_data["outflow"]) / clean_and_mean(episode.user_data["inflow"]) if clean_and_mean(episode.user_data["inflow"]) > 1e-5 else 0
 
     def on_train_result(info):
         """Registra le metriche globali per il training."""
@@ -455,7 +468,7 @@ def train_rllib(submodule, flags):
     if flags.tune:
         stop_criteria = {
             "training_iteration": 50,  
-            "episode_reward_mean": 7000,  
+            "episode_reward_mean": 15000,  
         }
 
         scheduler = ASHAScheduler(
@@ -490,7 +503,7 @@ def train_rllib(submodule, flags):
             'trial_name_creator': trial_str_creator,
             "max_failures": 0,
             "stop": {
-                "training_iteration": 50,
+                "training_iteration": num_iterations,
             },
         }
 

@@ -195,110 +195,108 @@ def visualizer_rllib(args):
         env.restart_simulation(sim_params=sim_params, render=sim_params.render)
 
     # Simulate and collect metrics
-    final_outflows = []
-    final_inflows = []
-    mean_speed = []
-    std_speed = []
+    final_outflows, final_inflows, mean_speed, std_speed = [], [], [], []
+    total_collisions, fuel_consumptions, avg_accelerations = [], [], []
+    mean_rl_speed, mean_idm_speed = [], []
+
     for i in range(args.num_rollouts):
-        vel = []
+        rl_vel, idm_vel, vel, fuel, accelerations = [], [], [], [], []
+        collisions = 0
         state = env.reset()
+
         if multiagent:
             ret = {key: [0] for key in rets.keys()}
         else:
             ret = 0
+
         for _ in range(env_params.horizon):
             vehicles = env.unwrapped.k.vehicle
-            speeds = vehicles.get_speed(vehicles.get_ids())
+            veh_ids = vehicles.get_ids()
+            idm_ids = vehicles.get_human_ids()
+            rl_ids = vehicles.get_rl_ids()
 
-            # only include non-empty speeds
+            speeds = vehicles.get_speed(veh_ids)
+            rl_speeds = vehicles.get_speed(rl_ids)
+            idm_speeds = vehicles.get_speed(idm_ids)
             if speeds:
-                vel.append(np.mean(speeds))
+                vel.append(np.nanmean(speeds))  # Media velocità
+            if rl_speeds:
+                rl_vel.append(np.nanmean(rl_speeds))
+            if idm_speeds:
+                idm_vel.append(np.nanmean(idm_speeds))
 
+            # Fuel consumption
+            fuel_consumed = vehicles.get_fuel_consumption(veh_ids)
+            if fuel_consumed:
+                fuel.append(np.nanmean(fuel_consumed))  # Media consumo carburante
+
+            # Accelerazione media dei veicoli
+            accel_values = [
+                np.abs((vehicles.get_speed(veh_id) - vehicles.get_previous_speed(veh_id)) / env.sim_step)
+                for veh_id in veh_ids if veh_id in vehicles.previous_speeds.keys()
+            ]
+            if accel_values:
+                accelerations.append(np.nanmean(accel_values))  # Media accelerazione
+
+            # Collision detection
+            if env.k.simulation.check_collision():
+                collisions += 1
+
+            # Compute actions
             if multiagent:
                 action = {}
                 for agent_id in state.keys():
-                    if use_lstm:
-                        action[agent_id], state_init[agent_id], logits = \
-                            agent.compute_action(
-                            state[agent_id], state=state_init[agent_id],
-                            policy_id=policy_map_fn(agent_id))
-                    else:
-                        action[agent_id] = agent.compute_action(
-                            state[agent_id], policy_id=policy_map_fn(agent_id))
+                    policy_id = policy_map_fn(agent_id)
+                    action[agent_id] = agent.compute_action(state[agent_id], policy_id=policy_id)
             else:
                 action = agent.compute_action(state)
+
             state, reward, done, _ = env.step(action)
+
             if multiagent:
                 for actor, rew in reward.items():
                     ret[policy_map_fn(actor)][0] += rew
             else:
                 ret += reward
+
             if multiagent and done['__all__']:
                 break
             if not multiagent and done:
                 break
 
-        if multiagent:
-            for key in rets.keys():
-                rets[key].append(ret[key])
-        else:
-            rets.append(ret)
-        outflow = vehicles.get_outflow_rate(500)
-        final_outflows.append(outflow)
-        inflow = vehicles.get_inflow_rate(500)
-        final_inflows.append(inflow)
-        if np.all(np.array(final_inflows) > 1e-5):
-            throughput_efficiency = [x / y for x, y in
-                                     zip(final_outflows, final_inflows)]
-        else:
-            throughput_efficiency = [0] * len(final_inflows)
+        # Memorizza le metriche raccolte
+        final_outflows.append(vehicles.get_outflow_rate(500))
+        final_inflows.append(vehicles.get_inflow_rate(500))
+
+        throughput_efficiency = (final_outflows[-1] / final_inflows[-1]) if final_inflows[-1] > 1e-5 else 0
+
+        total_collisions.append(collisions)
+        fuel_consumptions.append(np.mean(fuel) if fuel else 0)
+        avg_accelerations.append(np.mean(accelerations) if accelerations else 0)
+
         mean_speed.append(np.mean(vel))
         std_speed.append(np.std(vel))
-        if multiagent:
-            for agent_id, rew in rets.items():
-                print('Round {}, Return: {} for agent {}'.format(
-                    i, ret, agent_id))
-        else:
-            print('Round {}, Return: {}'.format(i, ret))
+        mean_rl_speed.append(np.mean(rl_vel))
+        mean_idm_speed.append(np.mean(idm_vel))
 
-    print('==== Summary of results ====')
-    print("Return:")
-    print(mean_speed)
+        print(f'Round {i}, Return: {ret}, Collisions: {collisions}, Throughput Efficiency: {throughput_efficiency:.3f}')
+
+    # Stampa le metriche finali
+    print("\n==== Summary of results ====")
     if multiagent:
         for agent_id, rew in rets.items():
-            print('For agent', agent_id)
-            print(rew)
-            print('Average, std return: {}, {} for agent {}'.format(
-                np.mean(rew), np.std(rew), agent_id))
+            print(f"Avg Return for {agent_id}: {np.mean(rew):.2f} ")
     else:
-        print(rets)
-        print('Average, std: {}, {}'.format(
-            np.mean(rets), np.std(rets)))
+        print(f"Avg Return: {np.mean(rets):.2f}")
 
-    print("\nSpeed, mean (m/s):")
-    print(mean_speed)
-    print('Average, std: {}, {}'.format(np.mean(mean_speed), np.std(
-        mean_speed)))
-    print("\nSpeed, std (m/s):")
-    print(std_speed)
-    print('Average, std: {}, {}'.format(np.mean(std_speed), np.std(
-        std_speed)))
+    print(f"Avg Speed (m/s): {np.mean(mean_speed)}")
+    print(f"Avg RL Speed (m/s): {np.mean(mean_rl_speed)}")
+    print(f"Avg IDM Speed (m/s): {np.mean(mean_idm_speed)}")
+    print(f"Avg Fuel Consumption: {np.mean(fuel_consumptions)}")
+    print(f"Avg Acceleration: {np.mean(avg_accelerations)}")
+    print(f"Avg Collisions: {np.mean(total_collisions)}")
+    print(f"Throughput Efficiency: {np.mean(throughput_efficiency)}")
 
-    # Compute arrival rate of vehicles in the last 500 sec of the run
-    print("\nOutflows (veh/hr):")
-    print(final_outflows)
-    print('Average, std: {}, {}'.format(np.mean(final_outflows),
-                                        np.std(final_outflows)))
-    # Compute departure rate of vehicles in the last 500 sec of the run
-    print("Inflows (veh/hr):")
-    print(final_inflows)
-    print('Average, std: {}, {}'.format(np.mean(final_inflows),
-                                        np.std(final_inflows)))
-    # Compute throughput efficiency in the last 500 sec of the
-    print("Throughput efficiency (veh/hr):")
-    print(throughput_efficiency)
-    print('Average, std: {}, {}'.format(np.mean(throughput_efficiency),
-                                        np.std(throughput_efficiency)))
 
     # terminate the environment
     env.unwrapped.terminate()

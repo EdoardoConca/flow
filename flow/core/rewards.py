@@ -436,3 +436,23 @@ def miles_per_gallon(env, veh_ids=None, gain=.001):
     mpg /= 1609.0
 
     return mpg * gain
+
+def throughput_reward(env, gain=1.0):
+    """
+    Reward function used to reward the RL vehicles for travelling forward.
+
+    Parameters
+    ----------
+    env : flow.envs.Env
+        the environment variable, which contains information on the current
+        state of the system.
+    gain : float
+        specifies how much to reward the RL vehicles
+
+    Returns
+    -------
+    float
+        reward value
+    """
+    outflow = env.k.vehicle.get_outflow_rate(500)  # Flusso in uscita negli ultimi 500s
+    return gain * outflow

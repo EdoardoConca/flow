@@ -59,9 +59,9 @@ def main():
 
     # Define paths for different models (Modify paths as needed)
     progress_files = {
-        "PPO": "/home/edoardo_reply/ray_results/PPO_Intersection/PPO_0_2025-02-24_19-55-19oio1vqy5/progress.csv",
-        "A3C": "/home/edoardo_reply/ray_results/A3C_Intersection/A3C_0_2025-02-24_19-16-12288gapnb/progress.csv",
-        "DDPG": "/home/edoardo_reply/ray_results/DDPG_Intersection/DDPG_0_2025-02-24_19-27-0460bqplsw/progress.csv"
+        "PPO": "/home/edoardo_reply/ray_results/PPO_Intersection_new_env/PPO_0_2025-02-27_03-11-15k1ygvl9h/progress.csv",
+        "A3C": "/home/edoardo_reply/ray_results/A3C_Intersection_new_env/A3C_0_2025-02-27_02-28-25sujo_sjr/progress.csv",
+        "DDPG": "/home/edoardo_reply/ray_results/DDPG_Intersection_new_env/DDPG_0_2025-02-27_02-48-02xzfv3wuj/progress.csv"
     }
 
     # Model labels for better readability

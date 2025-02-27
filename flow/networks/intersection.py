@@ -110,6 +110,7 @@ class Intersection(Network):
             {'from': 'L4', 'to': 'L1', 'fromLane': 0, 'toLane': 0},
             {'from': 'L4', 'to': 'L7', 'fromLane': 1, 'toLane': 1},
             {'from': 'L6', 'to': 'L1', 'fromLane': 1, 'toLane': 0},
+            {'from': 'L6', 'to': 'L1', 'fromLane': 1, 'toLane': 1},
             {'from': 'L6', 'to': 'L5', 'fromLane': 0, 'toLane': 0},
             {'from': 'L6', 'to': 'L3', 'fromLane': 0, 'toLane': 0},
             ]

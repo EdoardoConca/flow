@@ -49,7 +49,10 @@ def parse_args(args):
         action='store_true',
         help='Specifies whether to generate an emission file from the '
              'simulation.')
-
+    parser.add_argument(
+        '--emission_path', type=str, default="./data",
+        help='Specifies the path to store emission files.'
+)
     return parser.parse_known_args(args)[0]
 
 
@@ -77,11 +80,14 @@ if __name__ == "__main__":
 
     # Specify an emission path if they are meant to be generated.
     if flags.gen_emission:
-        flow_params['sim'].emission_path = "./data"
+        flow_params['sim'].emission_path = flags.emission_path
 
         # Create the flow_params object
         fp_ = flow_params['exp_tag']
         dir_ = flow_params['sim'].emission_path
+
+        os.makedirs(dir_, exist_ok=True)
+        
         with open(os.path.join(dir_, "{}.json".format(fp_)), 'w') as outfile:
             json.dump(flow_params, outfile,
                       cls=FlowParamsEncoder, sort_keys=True, indent=4)
