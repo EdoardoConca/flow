@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <img src="docs/img/square_logo.png" align="right" width="25%"/>
 
 [![Build Status](https://travis-ci.com/flow-project/flow.svg?branch=master)](https://travis-ci.com/flow-project/flow)
@@ -44,98 +43,171 @@ Vinitsky, E., Kreidieh, A., Le Flem, L., Kheterpal, N., Jang, K., Wu, F., ... & 
 # Contributors
 
 Flow is supported by the [Mobile Sensing Lab](http://bayen.eecs.berkeley.edu/) at UC Berkeley and Amazon AWS Machine Learning research grants. The contributors are listed in [Flow Team Page](https://flow-project.github.io/team.html).
-=======
-# mas-project-conca-2324
 
 
+# MAS-project-conca-2324
 
-## Getting started
+  
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Project Overview
 
-## Add your files
+  
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+This project implements a multi-agent reinforcement learning (MARL) system for autonomous vehicle coordination at unsignalized intersections using Flow, a framework for integrating SUMO with reinforcement learning libraries like RLlib.
+
+  
+
+The project extends the standard Flow environment by:
+
+  
+- Implementing a **custom  SUMO network** for the mixed traffic unsignalized intersection, that can be found at `mas_project/flow/network/intersection.py`
+
+- Creating **custom environments** for multi-agent training, `CustomNormalizedMultiAgentAccelPOEnv` and `VariantNormalizedMultiAgentAccelPOEnv` at `mas_project/flow/env/multiagent/intersection.py`
+
+- Modifying **training script**, `examples/train.py` to track important metrics and train different algorithms. Morevover added the possibility to run hyperparameter tuning.
+
+- Adding an **environment without RL**, `CustomTestEnv`  ,to serve as a baseline, at `mas_project/flow/envs/intersection_base.py`
+
+- Adding the **throughput_reward** at `flow/core/rewards.py` 
+
+- Creating a **new visualizer** to display important key metrics to evaluate training, at `flow/visualize/visualizer_rllib_new.py` 
+
+- Modifying the `Experiment` class at `flow/core/experiment.py` to display important key metrics to evaluate the Non RL environment `CustomTestEnv`.
+
+-  The project includes dedicated experiment configuration files for three reinforcement learning models: **A3C, PPO, and DDPG**. Each model has a corresponding configuration script defining the environment setup, traffic inflow, vehicle parameters, and RL settings.
+```
+mas_project/ 
+├── flow/ 
+├── examples/ 
+│ 	├── train.py 							# Script to train the RL models 
+│ 	├── simulate.py 						# Script to run simulation without RL 
+│ 	├── exp_configs/ 
+│ 	│ 	├── experiment_configs_a3c.py 		# Configuration for A3C 
+│ 	│ 	├── experiment_configs_ppo.py 		# Configuration for PPO 
+│ 	│ 	├── experiment_configs_ddpg.py 		# Configuration for DDPG 
+│ 	│ 	├── non_rl/
+│ 	│ 	│ 	│ 	├── intersection.py 		# No RL configuration
+│ 	│ 	├── rl/ 
+│ 	│ 	│ 	├── multiagent/ 
+│ 	│ 	│ 	│ 	├── intersection.py 		# Multi-agent PPO RL configuration
+│ 	│ 	│ 	│ 	├── intersection_a3c.py 	# Multi-agent A3C RL configuration
+│ 	│ 	│ 	│ 	├── intersection_ddpg.py 	# Multi-agent DDPG RL configuration
+│── README.md
+```
+
+## Running the Experiments
+
+  
+
+1. Training an RL Model
+
+  
+
+To train an RL model (A3C, PPO, or DDPG) on the custom intersection environment:
+
+  
 
 ```
-cd existing_repo
-git remote add origin https://dvcs.apice.unibo.it/pika-lab/courses/mas/projects/mas-project-conca-2324.git
-git branch -M master
-git push -uf origin master
+
+python examples/train.py intersection_a3c --algorithm a3c --best_hyps --num_iterations 50 --num_cpus 3
+
 ```
 
-## Integrate with your tools
+  
 
-- [ ] [Set up project integrations](https://dvcs.apice.unibo.it/pika-lab/courses/mas/projects/mas-project-conca-2324/-/settings/integrations)
+2. Visualizing Training Results
 
-## Collaborate with your team
+  
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+To visualize a trained model:
 
-## Test and Deploy
+  
 
-Use the built-in continuous integration in GitLab.
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+python flow/visualize/visualizer_rllib_new.py ~/ray_results/RESULT_DIR --checkpoint_num 50 --horizon 1500 --num_rollouts 5 --render_mode no_render
+```
 
-***
+  
 
-# Editing this README
+3. Running the Environment Without RL
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+  
 
-## Suggestions for a good README
+To simulate the intersection without reinforcement learning (baseline scenario):
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+  
 
-## Name
-Choose a self-explaining name for your project.
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+python examples/simulate.py intersection --num_runs 5 --horizon 1500 --no_render
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+  
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## Project Structure
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```
+mas_project/ 
+├── examples/ 
+│ 	├── train.py 							
+│ 	├── simulate.py 						 
+│ 	├── exp_configs/ 
+│ 	│ 	├── experiment_configs_a3c.py 		
+│ 	│ 	├── experiment_configs_ppo.py 		 
+│ 	│ 	└── experiment_configs_ddpg.py 
+│ 	│ 	├── non_rl/
+│ 	│ 	│ 	│ 	└── intersection.py 		 
+│ 	│ 	├── rl/ 
+│ 	│ 	│ 	├── multiagent/ 
+│ 	│ 	│ 	│ 	├── intersection.py 		
+│ 	│ 	│ 	│ 	├── intersection_a3c.py 	
+│ 	│ 	│ 	│ 	└── intersection_ddpg.py 	
+├── flow/ 
+│   ├── envs/
+│   │   ├── multiagent/
+│   │   │     └── intersection.py
+│   │   ├── visualize/
+│   │   │     └── visualizer_rllib_new.py
+│   │   ├── intersection_base.py
+│── README.md
+└── requirements.txt		
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+  
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Key Features
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+  
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- Multi-Agent Reinforcement Learning for traffic coordination.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+- Custom reward functions optimizing throughput and safety.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+- Baseline environment for comparison with RL-based approaches.
 
-## License
-For open source projects, say how it is licensed.
+- Custom metrics tracking for collision rate, fuel usage, speed, throughput and acceleration.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
->>>>>>> b2e89cff (Initial commit)
+- Multiple RL algorithms supported (A3C, PPO, DDPG).
+
+- Easy configuration and extensibility with modular experiment files.
+
+  
+
+## Future Improvements
+
+ - Fine-tune RL models for better generalization across different traffic scenarios.
+
+- Implement more advanced reward functions specifically for the chosen alghoritm.
+
+- Extend the project to multi-intersection coordination.
+
+- Incorporating Vehicle-to-Vehicle (V2V) Communication
+
+## Author
+
+  
+
+Edoardo Conca
