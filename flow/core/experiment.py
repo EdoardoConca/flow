@@ -125,6 +125,7 @@ class Experiment:
             "fuel_consumption": [],
             "collisions": [],
             "outflows": [],
+            "num_cars": [],
             "throughput_efficiency": [],
         }
         info_dict.update({key: [] for key in self.custom_callables.keys()})
@@ -140,6 +141,7 @@ class Experiment:
         for i in range(num_runs):
             ret = 0
             vel = []
+            n_cars = []
             accs = []
             fuel_cons = []
             collisions = 0
@@ -154,6 +156,9 @@ class Experiment:
 
                 veh_ids = self.env.k.vehicle.get_ids()
                 
+                # Collect number of cars
+                n_cars.append(len(veh_ids))
+
                 # Collect metrics
                 if veh_ids:
                     vel.append(np.nanmean(self.env.k.vehicle.get_speed(veh_ids)))
@@ -195,6 +200,7 @@ class Experiment:
             info_dict["collisions"].append(collisions)
             info_dict["outflows"].append(outflow)
             info_dict["throughput_efficiency"].append(throughput_efficiency)
+            info_dict["num_cars"].append(np.mean(n_cars))
 
             for key in custom_vals.keys():
                 info_dict[key].append(np.mean(custom_vals[key]))
@@ -206,8 +212,11 @@ class Experiment:
                 self.env.k.simulation.save_emission(run_id=i)
 
         # Print the averages for all stored variables
+        print("\n==== Summary of results ====")
         for key in info_dict.keys():
             print(f"Average {key}: {np.mean(info_dict[key])}")
+
+        print("Total collisions:", np.sum(info_dict["collisions"]))
 
         print("Total time:", time.time() - t)
         print("Steps/second:", np.mean(times))

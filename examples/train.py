@@ -291,7 +291,8 @@ def setup_exps_rllib(flow_params,
         """Inizializza le metriche per ogni episodio."""
         episode = info["episode"]
         episode.user_data["fuel_consumption"] = []  
-        episode.user_data["collisions"] = 0  
+        episode.user_data["collisions_rate"] = 0
+        episode.user_data["collisions"] = 0   
         episode.user_data["num_cars"] = []  
         episode.user_data["avg_accel_human"] = []  
         episode.user_data["avg_accel_avs"] = []  
@@ -371,14 +372,16 @@ def setup_exps_rllib(flow_params,
             return float(data) if isinstance(data, (int, float)) else 0  
 
         for k in episode.user_data:
-            try:
-                episode.custom_metrics[k] = clean_and_mean(episode.user_data[k])
-            except Exception as e:
-                print(f"Errore su {k}: {str(e)}, sto ignorando.")
+            if k != "collisions_rate" or k != "collisions":
+                try:
+                    episode.custom_metrics[k] = clean_and_mean(episode.user_data[k])
+                except Exception as e:
+                    print(f"Errore su {k}: {str(e)}, sto ignorando.")
                 episode.custom_metrics[k] = 0
 
         episode.custom_metrics["fuel_consumption"] = clean_and_mean(episode.user_data["fuel_consumption"])
-        episode.custom_metrics["total_collisions"] = episode.user_data.get("collisions", 0)
+        episode.custom_metrics["collisions_rate"] = episode.user_data.get("collisions_rate", 0)
+        episode.custom_metrics["collisions"] = episode.user_data.get("collisions", 0)
         episode.custom_metrics["avg_speed"] = clean_and_mean(episode.user_data["avg_speed"])
         episode.custom_metrics["avg_speed_avs"] = clean_and_mean(episode.user_data["avg_speed_avs"])
         episode.custom_metrics["avg_speed_human"] = clean_and_mean(episode.user_data["avg_speed_human"])

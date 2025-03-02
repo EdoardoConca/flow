@@ -3,57 +3,62 @@ import pandas as pd
 import os
 import argparse
 
-def plot_cumulative_rewards(progress_files, labels, save_path=None):
+def plot_training_metrics(progress_files, labels, save_dir=None):
     """
-    Plots the cumulative reward over training iterations for multiple models.
+    Plots multiple training metrics over iterations for different models.
 
     Parameters:
     - progress_files (dict): Dictionary with key = model name, value = path to the progress.csv file.
     - labels (dict): Dictionary with key = model name, value = label to display in the plot.
-    - save_path (str, optional): If provided, saves the plot at this location.
+    - save_dir (str, optional): If provided, saves the plots in this directory.
 
     Output:
-    - Displays the matplotlib plot.
+    - Displays and optionally saves multiple matplotlib plots.
     """
-    plt.figure(figsize=(10, 6))
+    metrics = {
+        "episode_reward_mean": "Episode Reward Mean",
+        "custom_metrics/fuel_consumption_mean": "Fuel Consumption",
+        "custom_metrics/total_collisions_mean": "Total Collisions",
+        "custom_metrics/avg_speed_mean": "Average Speed",
+        "custom_metrics/throughput_efficency_mean": "Throughput Efficiency",
+        "custom_metrics/avg_accel_avs_mean": "Average AV Acceleration"
+    }
 
-    for model_name, file_path in progress_files.items():
-        if not os.path.exists(file_path):
-            print(f"File not found: {file_path}")
-            continue
+    if save_dir:
+        os.makedirs(save_dir, exist_ok=True)
 
-        df = pd.read_csv(file_path)
+    for metric, title in metrics.items():
+        plt.figure(figsize=(10, 6))
 
-        # Identify the appropriate reward column
-        possible_columns = ["episode_reward_mean", "cumulative_reward", "mean_reward"]
-        reward_col = next((col for col in possible_columns if col in df.columns), None)
+        for model_name, file_path in progress_files.items():
+            if not os.path.exists(file_path):
+                print(f"File not found: {file_path}")
+                continue
 
-        if reward_col is None:
-            print(f"No valid reward column found in {file_path}, skipping.")
-            continue
+            df = pd.read_csv(file_path)
 
-        if "training_iteration" not in df.columns:
-            print(f"'training_iteration' column missing in {file_path}, skipping.")
-            continue
+            if "training_iteration" not in df.columns or metric not in df.columns:
+                print(f"Missing column '{metric}' in {file_path}, skipping.")
+                continue
 
-        # Plot cumulative reward
-        plt.plot(df["training_iteration"], df[reward_col], label=labels.get(model_name, model_name))
+            plt.plot(df["training_iteration"], df[metric], label=labels.get(model_name, model_name))
 
-    plt.xlabel("Number of Iterations")
-    plt.ylabel("Cumulative Reward")
-    plt.title("Cumulative Reward Comparison Across Models")
-    plt.legend()
-    plt.grid(True)
+        plt.xlabel("Number of Iterations")
+        plt.ylabel(title)
+        plt.title(f"{title} Across Training Iterations")
+        plt.legend()
+        plt.grid(True)
 
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-        print(f"Graph saved at: {save_path}")
+        if save_dir:
+            save_path = os.path.join(save_dir, f"{metric.replace('/', '_')}.png")
+            plt.savefig(save_path, dpi=300)
+            print(f"Graph saved at: {save_path}")
 
-    plt.show()
+        plt.show()
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot cumulative rewards from Ray Tune progress.csv files.")
-    parser.add_argument("--save_path", type=str, required=True, help="Path to save the output plot.")
+    parser = argparse.ArgumentParser(description="Plot multiple training metrics from Ray Tune progress.csv files.")
+    parser.add_argument("--save_dir", type=str, required=True, help="Directory to save the output plots.")
     
     args = parser.parse_args()
 
@@ -71,8 +76,7 @@ def main():
         "DDPG": "Deep Deterministic Policy Gradient"
     }
 
-    plot_cumulative_rewards(progress_files, labels, save_path=args.save_path)
+    plot_training_metrics(progress_files, labels, save_dir=args.save_dir)
 
 if __name__ == "__main__":
     main()
-

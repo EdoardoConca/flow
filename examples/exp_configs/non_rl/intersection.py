@@ -46,6 +46,12 @@ for edge in ["L0", "L2", "L4", "L6"]:
         vehs_per_hour= FLOW_RATE,
         depart_lane="random",
         depart_speed=10)
+    inflow.add(
+        veh_type="human",
+        edge=edge,
+        vehs_per_hour= FLOW_RATE,
+        depart_lane="random",
+        depart_speed=10)
 
     
 # Traffic lights parameters

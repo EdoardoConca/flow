@@ -199,6 +199,7 @@ def visualizer_rllib(args):
     final_inflows = []
     mean_speed = []
     std_speed = []
+    collisions = []
     for i in range(args.num_rollouts):
         vel = []
         state = env.reset()
@@ -213,6 +214,9 @@ def visualizer_rllib(args):
             # only include non-empty speeds
             if speeds:
                 vel.append(np.mean(speeds))
+            
+            if env.k.simulation.check_collision():
+                collisions.append(1)
 
             if multiagent:
                 action = {}
@@ -299,6 +303,10 @@ def visualizer_rllib(args):
     print(throughput_efficiency)
     print('Average, std: {}, {}'.format(np.mean(throughput_efficiency),
                                         np.std(throughput_efficiency)))
+    
+    print("Collisions:")
+    print(collisions)
+    print('Total Collisions: {}'.format(sum(collisions)))   
 
     # terminate the environment
     env.unwrapped.terminate()

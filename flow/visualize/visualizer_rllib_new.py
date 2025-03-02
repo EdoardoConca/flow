@@ -31,6 +31,7 @@ from flow.utils.registry import make_create_env
 from flow.utils.rllib import get_flow_params
 from flow.utils.rllib import get_rllib_config
 from flow.utils.rllib import get_rllib_pkl
+sys.path.append(os.path.abspath("./examples/exp_configs"))
 
 
 EXAMPLE_USAGE = """
@@ -68,15 +69,7 @@ def visualizer_rllib(args):
     config['num_workers'] = 1
 
     flow_params = get_flow_params(config)
-
-    # hack for old pkl files
-    # TODO(ev) remove eventually
     sim_params = flow_params['sim']
-    setattr(sim_params, 'num_clients', 1)
-
-    # for hacks for old pkl files TODO: remove eventually
-    if not hasattr(sim_params, 'use_ballistic'):
-        sim_params.use_ballistic = False
 
     # Determine agent and checkpoint
     config_run = config['env_config']['run'] if 'run' in config['env_config'] \
@@ -196,13 +189,15 @@ def visualizer_rllib(args):
 
     # Simulate and collect metrics
     final_outflows, final_inflows, mean_speed, std_speed = [], [], [], []
-    total_collisions, fuel_consumptions, avg_accelerations = [], [], []
+    total_collisions, fuel_consumptions, avg_accelerations, avg_num_cars = [], [], [], []
     mean_rl_speed, mean_idm_speed = [], []
 
     for i in range(args.num_rollouts):
-        rl_vel, idm_vel, vel, fuel, accelerations = [], [], [], [], []
+        rl_vel, idm_vel, vel, fuel, accelerations, num_cars= [], [], [], [], [], []
         collisions = 0
         state = env.reset()
+        env.k.simulation.simulation_step()
+
 
         if multiagent:
             ret = {key: [0] for key in rets.keys()}
@@ -210,6 +205,28 @@ def visualizer_rllib(args):
             ret = 0
 
         for _ in range(env_params.horizon):
+            # Compute actions
+            if multiagent:
+                action = {}
+                for agent_id in state.keys():
+                    if use_lstm:
+                        action[agent_id], state_init[agent_id], logits = \
+                            agent.compute_action(
+                            state[agent_id], state=state_init[agent_id],
+                            policy_id=policy_map_fn(agent_id))
+                    else:
+                        action[agent_id] = agent.compute_action(state[agent_id], policy_id=policy_map_fn(agent_id))
+            else:
+                action = agent.compute_action(state)
+
+            state, reward, done, _ = env.step(action)
+
+            if multiagent:
+                for actor, rew in reward.items():
+                    ret[policy_map_fn(actor)][0] += rew
+            else:
+                ret += reward
+
             vehicles = env.unwrapped.k.vehicle
             veh_ids = vehicles.get_ids()
             idm_ids = vehicles.get_human_ids()
@@ -225,6 +242,9 @@ def visualizer_rllib(args):
             if idm_speeds:
                 idm_vel.append(np.nanmean(idm_speeds))
 
+            # Number of vehicles
+            num_cars.append(len(veh_ids))
+
             # Fuel consumption
             fuel_consumed = vehicles.get_fuel_consumption(veh_ids)
             if fuel_consumed:
@@ -239,30 +259,20 @@ def visualizer_rllib(args):
                 accelerations.append(np.nanmean(accel_values))  # Media accelerazione
 
             # Collision detection
-            if env.k.simulation.check_collision():
+            simulation = env.unwrapped.k.simulation
+            if simulation.check_collision():
                 collisions += 1
-
-            # Compute actions
-            if multiagent:
-                action = {}
-                for agent_id in state.keys():
-                    policy_id = policy_map_fn(agent_id)
-                    action[agent_id] = agent.compute_action(state[agent_id], policy_id=policy_id)
-            else:
-                action = agent.compute_action(state)
-
-            state, reward, done, _ = env.step(action)
-
-            if multiagent:
-                for actor, rew in reward.items():
-                    ret[policy_map_fn(actor)][0] += rew
-            else:
-                ret += reward
-
+            
             if multiagent and done['__all__']:
                 break
             if not multiagent and done:
                 break
+
+        if multiagent:
+            for key in ret.keys():
+                rets[key].append(ret[key][0])
+        else:
+            rets.append(ret)
 
         # Memorizza le metriche raccolte
         final_outflows.append(vehicles.get_outflow_rate(500))
@@ -270,6 +280,7 @@ def visualizer_rllib(args):
 
         throughput_efficiency = (final_outflows[-1] / final_inflows[-1]) if final_inflows[-1] > 1e-5 else 0
 
+        avg_num_cars.append(np.mean(num_cars))
         total_collisions.append(collisions)
         fuel_consumptions.append(np.mean(fuel) if fuel else 0)
         avg_accelerations.append(np.mean(accelerations) if accelerations else 0)
@@ -280,6 +291,10 @@ def visualizer_rllib(args):
         mean_idm_speed.append(np.mean(idm_vel))
 
         print(f'Round {i}, Return: {ret}, Collisions: {collisions}, Throughput Efficiency: {throughput_efficiency:.3f}')
+
+        # Save emission data if required
+        if env.simulator == "traci":
+            env.k.simulation.save_emission(run_id=i)
 
     # Stampa le metriche finali
     print("\n==== Summary of results ====")
@@ -294,7 +309,10 @@ def visualizer_rllib(args):
     print(f"Avg IDM Speed (m/s): {np.mean(mean_idm_speed)}")
     print(f"Avg Fuel Consumption: {np.mean(fuel_consumptions)}")
     print(f"Avg Acceleration: {np.mean(avg_accelerations)}")
+    print(f"Avg number of vehicles: {np.mean(avg_num_cars)}")
     print(f"Avg Collisions: {np.mean(total_collisions)}")
+    print(f"Avg Collision: {np.sum(total_collisions)}")
+    print(f"Avg Outflow: {np.mean(final_outflows)}")
     print(f"Throughput Efficiency: {np.mean(throughput_efficiency)}")
 
 
